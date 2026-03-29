@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -22,6 +22,7 @@ type AttemptRecord = {
   id: string;
   questionId: string;
   category: Category;
+  questionType: QuestionType;
   selectedOptionLabel: string;
   correct: boolean;
   timeTakenSeconds: number;
@@ -88,7 +89,7 @@ const shuffleTiles = (size: number) => {
 
 const isSolvedTiles = (tiles: number[]) => tiles.every((value, idx) => value === idx);
 
-export default function QuestionPage() {
+function QuestionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryPlayerId = searchParams.get("playerId");
@@ -176,7 +177,7 @@ export default function QuestionPage() {
   const loadAttempts = async (id: string) => {
     const { data, error: attemptsError } = await supabase
       .from("attempts")
-      .select("id, question_id, category, selected_option_label, correct, time_taken_seconds, submitted_at")
+      .select("id, question_id, category, selected_option_id, selected_option_label, correct, time_taken_seconds, submitted_at")
       .eq("player_id", id)
       .eq("game_date", today)
       .order("submitted_at", { ascending: true });
@@ -189,6 +190,7 @@ export default function QuestionPage() {
       id: item.id,
       questionId: item.question_id,
       category: item.category,
+      questionType: item.selected_option_id === "solved" ? "image_puzzle" : "mcq",
       selectedOptionLabel: item.selected_option_label,
       correct: item.correct,
       timeTakenSeconds: item.time_taken_seconds,
@@ -409,7 +411,12 @@ export default function QuestionPage() {
     .filter((attempt) => attempt.correct)
     .reduce((total, attempt) => total + attempt.timeTakenSeconds, 0);
 
-  const submitProgress = async (selectedOptionId: string, selectedOptionLabel: string, isCorrect: boolean) => {
+  const submitProgress = async (
+    selectedOptionId: string,
+    selectedOptionLabel: string,
+    isCorrect: boolean,
+    advanceOnWrong: boolean
+  ) => {
     if (!session || !currentQuestion || !currentCategory) {
       return;
     }
@@ -435,7 +442,7 @@ export default function QuestionPage() {
       throw attemptError;
     }
 
-    if (!isCorrect) {
+    if (!isCorrect && !advanceOnWrong) {
       setError("Wrong answer. Try again.");
       await loadAttempts(session.id);
       return;
@@ -484,7 +491,7 @@ export default function QuestionPage() {
         : prev
     );
 
-    setSuccessMessage("Correct answer. Next category unlocked.");
+    setSuccessMessage(advanceOnWrong ? "Answer recorded. Next category unlocked." : "Correct answer. Next category unlocked.");
     await loadAttempts(session.id);
   };
 
@@ -516,7 +523,7 @@ export default function QuestionPage() {
 
     setLoading(true);
     try {
-      await submitProgress(chosenOption.id, chosenOption.label[language], isCorrect);
+      await submitProgress(chosenOption.id, chosenOption.label[language], isCorrect, true);
     } catch {
       setError("Could not submit answer. Try again.");
     } finally {
@@ -549,7 +556,7 @@ export default function QuestionPage() {
       setError("");
       setSuccessMessage("");
       try {
-        await submitProgress("solved", "PUZZLE_SOLVED", true);
+        await submitProgress("solved", "PUZZLE_SOLVED", true, false);
       } catch {
         setError("Could not submit puzzle result. Try again.");
       } finally {
@@ -719,7 +726,10 @@ export default function QuestionPage() {
             <ul>
               {attempts.map((attempt) => (
                 <li key={attempt.id}>
-                  <strong>{attempt.category.toUpperCase()}</strong>: {attempt.correct ? "Correct" : "Wrong"} | {attempt.selectedOptionLabel} | {Math.round(attempt.timeTakenSeconds)}s
+                  <strong>{attempt.category.toUpperCase()}</strong>:{" "}
+                  {attempt.questionType === "image_puzzle"
+                    ? `Puzzle solved | ${Math.round(attempt.timeTakenSeconds)}s`
+                    : `Answer submitted | ${Math.round(attempt.timeTakenSeconds)}s`}
                 </li>
               ))}
             </ul>
@@ -727,5 +737,21 @@ export default function QuestionPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+export default function QuestionPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="page">
+          <section className="card">
+            <p>Loading your game...</p>
+          </section>
+        </main>
+      }
+    >
+      <QuestionContent />
+    </Suspense>
   );
 }

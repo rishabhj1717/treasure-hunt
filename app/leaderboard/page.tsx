@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -35,7 +35,7 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-export default function LeaderboardPage() {
+function LeaderboardContent() {
   const searchParams = useSearchParams();
   const playerId = searchParams.get("playerId");
 
@@ -149,5 +149,21 @@ export default function LeaderboardPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function LeaderboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="page">
+          <section className="card">
+            <p>Loading leaderboard...</p>
+          </section>
+        </main>
+      }
+    >
+      <LeaderboardContent />
+    </Suspense>
   );
 }
