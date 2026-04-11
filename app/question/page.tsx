@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Category = "easy" | "medium" | "hard" | "difficult" | "expert";
-type QuestionType = "mcq" | "image_puzzle";
+type QuestionType = "mcq" | "image_puzzle" | "fill_blank";
 type Language = "english" | "hindi";
 
 type PlayerSession = {
@@ -37,6 +37,12 @@ type QuestionRow = {
   image_url: string | null;
   prompt: string;
   prompt_hi: string | null;
+  show_trivia: boolean | null;
+  trivia_text: string | null;
+  trivia_text_hi: string | null;
+  trivia_image_url: string | null;
+  answer_text: string | null;
+  answer_text_hi: string | null;
   option_a: string | null;
   option_a_hi: string | null;
   option_b: string | null;
@@ -54,12 +60,24 @@ type GameQuestion = {
   questionType: QuestionType;
   imageUrl: string | null;
   prompt: Record<Language, string>;
+  showTrivia: boolean;
+  triviaText: Record<Language, string>;
+  triviaImageUrl: string | null;
   options: { id: "a" | "b" | "c" | "d"; label: Record<Language, string> }[];
+  acceptedAnswers: string[];
   correctOptionId: "a" | "b" | "c" | "d";
 };
 
+type PendingTrivia = {
+  question: GameQuestion;
+  nextStageIndex: number;
+  nextStageQuestionIds: Record<string, string>;
+  redirectToLeaderboard: boolean;
+  message: string;
+};
+
 const STAGES: Category[] = ["easy", "medium", "hard", "difficult", "expert"];
-const PLAYER_ID_STORAGE_KEY = "treasure_hunt_player_id";
+const PLAYER_ID_STORAGE_KEY = "jin_gyan_player_id";
 const PUZZLE_SIZE = 3;
 
 const getLocalDateString = () => {
@@ -88,6 +106,7 @@ const shuffleTiles = (size: number) => {
 };
 
 const isSolvedTiles = (tiles: number[]) => tiles.every((value, idx) => value === idx);
+const normalizeText = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 
 function QuestionContent() {
   const router = useRouter();
@@ -106,11 +125,13 @@ function QuestionContent() {
     expert: []
   });
   const [selectedOption, setSelectedOption] = useState("");
+  const [fillBlankAnswer, setFillBlankAnswer] = useState("");
   const [language, setLanguage] = useState<Language>("english");
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [questionShownAtMs, setQuestionShownAtMs] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [pendingTrivia, setPendingTrivia] = useState<PendingTrivia | null>(null);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
@@ -190,7 +211,12 @@ function QuestionContent() {
       id: item.id,
       questionId: item.question_id,
       category: item.category,
-      questionType: item.selected_option_id === "solved" ? "image_puzzle" : "mcq",
+      questionType:
+        item.selected_option_id === "solved"
+          ? "image_puzzle"
+          : item.selected_option_id === "fill_blank"
+            ? "fill_blank"
+            : "mcq",
       selectedOptionLabel: item.selected_option_label,
       correct: item.correct,
       timeTakenSeconds: item.time_taken_seconds,
@@ -204,7 +230,9 @@ function QuestionContent() {
   const loadTodayQuestions = async () => {
     const { data, error: questionsError } = await supabase
       .from("questions")
-      .select("id, game_date, category, question_type, image_url, prompt, prompt_hi, option_a, option_a_hi, option_b, option_b_hi, option_c, option_c_hi, option_d, option_d_hi, correct_option_id")
+      .select(
+        "id, game_date, category, question_type, image_url, prompt, prompt_hi, show_trivia, trivia_text, trivia_text_hi, trivia_image_url, answer_text, answer_text_hi, option_a, option_a_hi, option_b, option_b_hi, option_c, option_c_hi, option_d, option_d_hi, correct_option_id"
+      )
       .eq("game_date", today)
       .order("created_at", { ascending: true });
 
@@ -232,6 +260,12 @@ function QuestionContent() {
           english: row.prompt,
           hindi: row.prompt_hi ?? row.prompt
         },
+        showTrivia: !!row.show_trivia,
+        triviaText: {
+          english: row.trivia_text ?? "",
+          hindi: row.trivia_text_hi ?? row.trivia_text ?? ""
+        },
+        triviaImageUrl: row.trivia_image_url,
         options: [
           {
             id: "a",
@@ -262,6 +296,9 @@ function QuestionContent() {
             }
           }
         ],
+        acceptedAnswers: [row.answer_text, row.answer_text_hi]
+          .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          .map((value) => normalizeText(value)),
         correctOptionId: row.correct_option_id
       };
 
@@ -396,6 +433,7 @@ function QuestionContent() {
 
     setQuestionShownAtMs(Date.now());
     setSelectedOption("");
+    setFillBlankAnswer("");
     setSuccessMessage("");
 
     if (currentQuestion.questionType === "image_puzzle") {
@@ -472,13 +510,33 @@ function QuestionContent() {
       throw updateError;
     }
 
-    if (nextStageIndex >= STAGES.length) {
-      router.push(`/leaderboard?playerId=${session.id}`);
+    if (ensuredNext.missingCategory) {
+      setError(`No ${ensuredNext.missingCategory.toUpperCase()} questions found for ${today}.`);
+    }
+
+    const message = advanceOnWrong ? "Answer recorded. Next category unlocked." : "Correct answer. Next category unlocked.";
+    const hasTrivia =
+      currentQuestion.showTrivia &&
+      (!!currentQuestion.triviaText.english.trim() ||
+        !!currentQuestion.triviaText.hindi.trim() ||
+        !!currentQuestion.triviaImageUrl);
+
+    await loadAttempts(session.id);
+
+    if (hasTrivia) {
+      setPendingTrivia({
+        question: currentQuestion,
+        nextStageIndex,
+        nextStageQuestionIds,
+        redirectToLeaderboard: nextStageIndex >= STAGES.length,
+        message
+      });
       return;
     }
 
-    if (ensuredNext.missingCategory) {
-      setError(`No ${ensuredNext.missingCategory.toUpperCase()} questions found for ${today}.`);
+    if (nextStageIndex >= STAGES.length) {
+      router.push(`/leaderboard?playerId=${session.id}`);
+      return;
     }
 
     setSession((prev) =>
@@ -491,8 +549,32 @@ function QuestionContent() {
         : prev
     );
 
-    setSuccessMessage(advanceOnWrong ? "Answer recorded. Next category unlocked." : "Correct answer. Next category unlocked.");
-    await loadAttempts(session.id);
+    setSuccessMessage(message);
+  };
+
+  const continueAfterTrivia = () => {
+    if (!pendingTrivia || !session) {
+      return;
+    }
+
+    const { nextStageIndex, nextStageQuestionIds, redirectToLeaderboard, message } = pendingTrivia;
+    setPendingTrivia(null);
+
+    if (redirectToLeaderboard) {
+      router.push(`/leaderboard?playerId=${session.id}`);
+      return;
+    }
+
+    setSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            currentStageIndex: nextStageIndex,
+            stageQuestionIds: nextStageQuestionIds
+          }
+        : prev
+    );
+    setSuccessMessage(message);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -565,6 +647,34 @@ function QuestionContent() {
     }
   };
 
+  const handleFillBlankSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setSuccessMessage("");
+
+    if (!session || !currentQuestion || !currentCategory || currentQuestion.questionType !== "fill_blank") {
+      return;
+    }
+
+    const submittedAnswer = fillBlankAnswer.trim();
+    if (!submittedAnswer) {
+      setError("Please enter an answer.");
+      return;
+    }
+
+    const normalizedAnswer = normalizeText(submittedAnswer);
+    const isCorrect = currentQuestion.acceptedAnswers.includes(normalizedAnswer);
+
+    setLoading(true);
+    try {
+      await submitProgress("fill_blank", submittedAnswer, isCorrect, false);
+    } catch {
+      setError("Could not submit answer. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (bootstrapping) {
     return (
       <main className="page">
@@ -579,7 +689,7 @@ function QuestionContent() {
     return (
       <main className="page">
         <section className="card stack">
-          <h1>Treasure Hunt</h1>
+          <h1>Jin Gyan</h1>
           <p className="error">{error || "Unable to start game."}</p>
           <button
             type="button"
@@ -599,7 +709,7 @@ function QuestionContent() {
     return (
       <main className="page">
         <section className="card stack">
-          <h1>Treasure Hunt</h1>
+          <h1>Jin Gyan</h1>
           <p className="error">{error || `No ${currentCategory?.toUpperCase()} question available for ${today}.`}</p>
         </section>
       </main>
@@ -645,11 +755,27 @@ function QuestionContent() {
 
         {hasCompleted ? (
           <div className="stack">
-            <h2>Treasure Unlocked</h2>
+            <h2>Jin Gyan Complete</h2>
             <p>You solved all categories for {today}.</p>
             <p>Total solve time: {Math.round(totalSolvedSeconds)} seconds.</p>
             <button type="button" onClick={() => router.push(`/leaderboard?playerId=${session.id}`)}>
               View Leaderboard
+            </button>
+          </div>
+        ) : pendingTrivia ? (
+          <div className="stack">
+            <p><strong>Category:</strong> {pendingTrivia.question.category.toUpperCase()}</p>
+            <h2>Answer Trivia</h2>
+            {pendingTrivia.question.triviaText[language] && <p>{pendingTrivia.question.triviaText[language]}</p>}
+            {pendingTrivia.question.triviaImageUrl && (
+              <img
+                className="trivia-image"
+                src={pendingTrivia.question.triviaImageUrl}
+                alt="Trivia related to the answer"
+              />
+            )}
+            <button type="button" onClick={continueAfterTrivia}>
+              Continue
             </button>
           </div>
         ) : currentQuestion?.questionType === "image_puzzle" ? (
@@ -689,6 +815,23 @@ function QuestionContent() {
               </>
             )}
           </div>
+        ) : currentQuestion?.questionType === "fill_blank" ? (
+          <form onSubmit={handleFillBlankSubmit} className="stack">
+            <p><strong>Category:</strong> {currentQuestion.category.toUpperCase()}</p>
+            <h2>{currentQuestion.prompt[language]}</h2>
+            <label htmlFor="fill-blank-answer">Your Answer</label>
+            <input
+              id="fill-blank-answer"
+              type="text"
+              value={fillBlankAnswer}
+              onChange={(event) => setFillBlankAnswer(event.target.value)}
+              placeholder={language === "english" ? "Type your answer" : "अपना उत्तर लिखें"}
+              autoComplete="off"
+            />
+            <button type="submit" disabled={loading}>
+              {loading ? "Submitting..." : "Submit Answer"}
+            </button>
+          </form>
         ) : (
           <form onSubmit={handleSubmit} className="stack">
             <p><strong>Category:</strong> {currentQuestion?.category.toUpperCase()}</p>
@@ -729,7 +872,9 @@ function QuestionContent() {
                   <strong>{attempt.category.toUpperCase()}</strong>:{" "}
                   {attempt.questionType === "image_puzzle"
                     ? `Puzzle solved | ${Math.round(attempt.timeTakenSeconds)}s`
-                    : `Answer submitted | ${Math.round(attempt.timeTakenSeconds)}s`}
+                    : attempt.questionType === "fill_blank"
+                      ? `${attempt.correct ? "Correct" : "Wrong"} | ${Math.round(attempt.timeTakenSeconds)}s`
+                      : `Answer submitted | ${Math.round(attempt.timeTakenSeconds)}s`}
                 </li>
               ))}
             </ul>

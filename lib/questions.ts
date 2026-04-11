@@ -1,16 +1,16 @@
-export type TreasureQuestionOption = {
+export type JinGyanQuestionOption = {
   id: string;
   label: string;
 };
 
-export type TreasureQuestion = {
+export type JinGyanQuestion = {
   id: string;
   prompt: string;
-  options: TreasureQuestionOption[];
+  options: JinGyanQuestionOption[];
   correctOptionId: string;
 };
 
-export const QUESTIONS: TreasureQuestion[] = [
+export const QUESTIONS: JinGyanQuestion[] = [
   {
     id: "q1",
     prompt: "I have keys but no locks, I have space but no rooms. What am I?",

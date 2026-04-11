@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
-const PLAYER_ID_STORAGE_KEY = "treasure_hunt_player_id";
+const PLAYER_ID_STORAGE_KEY = "jin_gyan_player_id";
 type Language = "english" | "hindi";
 
 export default function HomePage() {
@@ -63,7 +63,7 @@ export default function HomePage() {
           daily_completed_at: null,
           daily_total_time_seconds: null,
           created_at: nowIso,
-          last_login_at: nowIso
+          last_login_at: nowIso,
         })
         .select("id")
         .single();
@@ -75,7 +75,10 @@ export default function HomePage() {
       window.localStorage.setItem(PLAYER_ID_STORAGE_KEY, data.id);
       router.push(`/question?playerId=${data.id}`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to register right now. Try again.";
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to register right now. Try again.";
       setError(message);
     } finally {
       setLoading(false);
@@ -95,36 +98,41 @@ export default function HomePage() {
   return (
     <main className="page">
       <section className="card">
-        <h1>Treasure Hunt</h1>
-        <p>Register with your name and number to begin.</p>
+        <h1>Jin Gyan</h1>
+        <h3>
+          <p>Register with your name and number to begin</p>
+        </h3>
+        <h3>
+          <p>पंजीकरण शुरू करने के लिए अपना नाम और नंबर दर्ज करें</p>
+        </h3>
 
         <form onSubmit={handleRegister} className="stack">
-          <label htmlFor="name">Name</label>
+          <label htmlFor="name">Name/ नाम</label>
           <input
             id="name"
             type="text"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Your name"
+            placeholder="Your name/आपका नाम"
           />
 
-          <label htmlFor="phone">Number</label>
+          <label htmlFor="phone">Number / नंबर </label>
           <input
             id="phone"
             type="tel"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
-            placeholder="Phone number"
+            placeholder="Phone number / फ़ोन नंबर"
           />
 
-          <label htmlFor="language">Language</label>
+          <label htmlFor="language">Language / भाषा</label>
           <select
             id="language"
             value={language}
             onChange={(event) => setLanguage(event.target.value as Language)}
           >
-            <option value="english">English</option>
-            <option value="hindi">Hindi</option>
+            <option value="english">English </option>
+            <option value="hindi">हिंदी </option>
           </select>
 
           <button type="submit" disabled={loading}>

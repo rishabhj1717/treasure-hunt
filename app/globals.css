@@ -62,7 +62,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -70,6 +71,11 @@ input {
   font-size: 1rem;
   font-family: inherit;
   background: #fff;
+}
+
+textarea {
+  min-height: 100px;
+  resize: vertical;
 }
 
 button {
@@ -189,4 +195,11 @@ select {
 .toggle-button.active {
   background: var(--accent);
   color: #fff;
+}
+
+.trivia-image {
+  display: block;
+  width: min(420px, 100%);
+  border: 2px solid var(--line);
+  border-radius: 14px;
 }

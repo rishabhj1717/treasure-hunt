@@ -26,10 +26,16 @@ create table if not exists public.questions (
   id uuid primary key,
   game_date date not null,
   category text not null check (category in ('easy', 'medium', 'hard', 'difficult', 'expert')),
-  question_type text not null default 'mcq' check (question_type in ('mcq', 'image_puzzle')),
+  question_type text not null default 'mcq' check (question_type in ('mcq', 'image_puzzle', 'fill_blank')),
   image_url text,
   prompt text not null,
   prompt_hi text,
+  show_trivia boolean not null default false,
+  trivia_text text,
+  trivia_text_hi text,
+  trivia_image_url text,
+  answer_text text,
+  answer_text_hi text,
   option_a text,
   option_a_hi text,
   option_b text,
@@ -47,6 +53,12 @@ alter table public.questions add column if not exists category text;
 alter table public.questions add column if not exists question_type text;
 alter table public.questions add column if not exists image_url text;
 alter table public.questions add column if not exists prompt_hi text;
+alter table public.questions add column if not exists show_trivia boolean not null default false;
+alter table public.questions add column if not exists trivia_text text;
+alter table public.questions add column if not exists trivia_text_hi text;
+alter table public.questions add column if not exists trivia_image_url text;
+alter table public.questions add column if not exists answer_text text;
+alter table public.questions add column if not exists answer_text_hi text;
 alter table public.questions add column if not exists option_a_hi text;
 alter table public.questions add column if not exists option_b_hi text;
 alter table public.questions add column if not exists option_c_hi text;
@@ -59,6 +71,8 @@ update public.players set preferred_language = 'english' where preferred_languag
 alter table public.questions alter column game_date set not null;
 alter table public.questions alter column category set not null;
 alter table public.questions alter column question_type set not null;
+alter table public.questions drop constraint if exists questions_question_type_check;
+alter table public.questions drop constraint if exists questions_type_check;
 do $$
 begin
   if not exists (
@@ -92,7 +106,7 @@ begin
   ) then
     alter table public.questions
       add constraint questions_type_check
-      check (question_type in ('mcq', 'image_puzzle'));
+      check (question_type in ('mcq', 'image_puzzle', 'fill_blank'));
   end if;
 end $$;
 
@@ -142,6 +156,9 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update on table public.players to anon, authenticated;
 grant select, insert on table public.questions to anon, authenticated;
 grant select, insert on table public.attempts to anon, authenticated;
+revoke delete on table public.players from anon, authenticated;
+revoke delete on table public.questions from anon, authenticated;
+revoke delete on table public.attempts from anon, authenticated;
 
 do $$
 declare
