@@ -8,6 +8,7 @@ type PlayerRow = {
   id: string;
   name: string;
   phone: string;
+  current_stage_index: number;
   daily_completed_at: string | null;
   daily_total_time_seconds: number | null;
 };
@@ -26,6 +27,9 @@ type LeaderboardRow = {
   totalTime: number;
   completed: boolean;
 };
+
+const MAX_SCORE = 10;
+const clampScore = (value: number) => Math.min(Math.max(value, 0), MAX_SCORE);
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -54,7 +58,7 @@ function LeaderboardContent() {
         const [{ data: playersData, error: playersError }, { data: attemptsData, error: attemptsError }] = await Promise.all([
           supabase
             .from("players")
-            .select("id, name, phone, daily_completed_at, daily_total_time_seconds")
+            .select("id, name, phone, current_stage_index, daily_completed_at, daily_total_time_seconds")
             .eq("active_game_date", today),
           supabase.from("attempts").select("player_id, correct, time_taken_seconds").eq("game_date", today)
         ]);
@@ -79,9 +83,8 @@ function LeaderboardContent() {
 
         const leaderboard: LeaderboardRow[] = players.map((player) => {
           const playerAttempts = attemptsByPlayer.get(player.id) ?? [];
-          const correctAttempts = playerAttempts.filter((attempt) => attempt.correct);
-          const score = correctAttempts.length;
-          const totalTimeFromAttempts = correctAttempts.reduce((sum, attempt) => sum + attempt.time_taken_seconds, 0);
+          const score = clampScore(player.current_stage_index ?? 0);
+          const totalTimeFromAttempts = playerAttempts.reduce((sum, attempt) => sum + attempt.time_taken_seconds, 0);
 
           return {
             playerId: player.id,
@@ -125,7 +128,7 @@ function LeaderboardContent() {
   return (
     <main className="page">
       <section className="card stack">
-        <h1>Leaderboard</h1>
+        <h1>Jin Leaderboard</h1>
         <p>Daily ranking for {today}.</p>
         {myRank && <p><strong>Your rank:</strong> #{myRank}</p>}
 

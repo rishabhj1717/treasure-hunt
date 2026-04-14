@@ -72,13 +72,14 @@ type PendingTrivia = {
   question: GameQuestion;
   nextStageIndex: number;
   nextStageQuestionIds: Record<string, string>;
-  redirectToLeaderboard: boolean;
   message: string;
 };
 
-const STAGES: Category[] = ["easy", "medium", "hard", "difficult", "expert"];
+const STAGES: Category[] = ["easy", "medium", "hard", "difficult", "expert", "easy", "medium", "hard", "difficult", "expert"];
 const PLAYER_ID_STORAGE_KEY = "jin_gyan_player_id";
 const PUZZLE_SIZE = 3;
+const getStageKey = (stageIndex: number) => `stage_${stageIndex}`;
+const clampScore = (value: number) => Math.min(Math.max(value, 0), STAGES.length);
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -154,7 +155,7 @@ function QuestionContent() {
       return null;
     }
 
-    const questionId = session.stageQuestionIds[currentCategory];
+    const questionId = session.stageQuestionIds[getStageKey(session.currentStageIndex)];
     if (!questionId) {
       return null;
     }
@@ -175,12 +176,14 @@ function QuestionContent() {
     }
 
     const stage = STAGES[stageIndex];
-    const alreadySelected = existingIds[stage];
+    const stageKey = getStageKey(stageIndex);
+    const alreadySelected = existingIds[stageKey];
     if (alreadySelected && byId[alreadySelected]) {
       return { updatedIds: existingIds, missingCategory: null as Category | null };
     }
 
-    const pool = byCategory[stage] ?? [];
+    const usedQuestionIds = new Set(Object.values(existingIds));
+    const pool = (byCategory[stage] ?? []).filter((question) => !usedQuestionIds.has(question.id));
     if (pool.length === 0) {
       return { updatedIds: existingIds, missingCategory: stage };
     }
@@ -189,7 +192,7 @@ function QuestionContent() {
     return {
       updatedIds: {
         ...existingIds,
-        [stage]: chosen.id
+        [stageKey]: chosen.id
       },
       missingCategory: null as Category | null
     };
@@ -347,12 +350,20 @@ function QuestionContent() {
         const needsDailyReset = playerData.active_game_date !== today;
         const isFreshForToday = attemptRows.length === 0;
 
-        let currentStageIndex = needsDailyReset || isFreshForToday ? 0 : Math.max(0, playerData.current_stage_index ?? 0);
-        if (currentStageIndex > STAGES.length) {
-          currentStageIndex = STAGES.length;
-        }
+        let currentStageIndex = needsDailyReset || isFreshForToday ? 0 : clampScore(playerData.current_stage_index ?? 0);
 
-        let stageQuestionIds = (needsDailyReset ? {} : playerData.stage_question_ids ?? {}) as Record<string, string>;
+        const existingStageQuestionIds = (needsDailyReset ? {} : playerData.stage_question_ids ?? {}) as Record<string, string>;
+        let stageQuestionIds = { ...existingStageQuestionIds };
+
+        // Backward compatibility for older 5-stage category-keyed progress.
+        if (!needsDailyReset) {
+          STAGES.slice(0, 5).forEach((category, index) => {
+            const stageKey = getStageKey(index);
+            if (!stageQuestionIds[stageKey] && existingStageQuestionIds[category]) {
+              stageQuestionIds[stageKey] = existingStageQuestionIds[category];
+            }
+          });
+        }
 
         const ensured = ensureStageQuestion(currentStageIndex, stageQuestionIds, questionData.byCategory, questionData.byId);
         stageQuestionIds = ensured.updatedIds;
@@ -445,9 +456,9 @@ function QuestionContent() {
     }
   }, [currentQuestion, hasCompleted, puzzleQuestionId]);
 
-  const totalSolvedSeconds = attempts
-    .filter((attempt) => attempt.correct)
-    .reduce((total, attempt) => total + attempt.timeTakenSeconds, 0);
+  const completedScore = clampScore(session?.currentStageIndex ?? 0);
+
+  const totalSolvedSeconds = attempts.reduce((total, attempt) => total + attempt.timeTakenSeconds, 0);
 
   const submitProgress = async (
     selectedOptionId: string,
@@ -486,7 +497,7 @@ function QuestionContent() {
       return;
     }
 
-    const nextStageIndex = session.currentStageIndex + 1;
+    const nextStageIndex = clampScore(session.currentStageIndex + 1);
     let nextStageQuestionIds = { ...session.stageQuestionIds };
 
     const ensuredNext = ensureStageQuestion(nextStageIndex, nextStageQuestionIds, questionsByCategory, questionsById);
@@ -528,14 +539,8 @@ function QuestionContent() {
         question: currentQuestion,
         nextStageIndex,
         nextStageQuestionIds,
-        redirectToLeaderboard: nextStageIndex >= STAGES.length,
         message
       });
-      return;
-    }
-
-    if (nextStageIndex >= STAGES.length) {
-      router.push(`/leaderboard?playerId=${session.id}`);
       return;
     }
 
@@ -557,13 +562,8 @@ function QuestionContent() {
       return;
     }
 
-    const { nextStageIndex, nextStageQuestionIds, redirectToLeaderboard, message } = pendingTrivia;
+    const { nextStageIndex, nextStageQuestionIds, message } = pendingTrivia;
     setPendingTrivia(null);
-
-    if (redirectToLeaderboard) {
-      router.push(`/leaderboard?playerId=${session.id}`);
-      return;
-    }
 
     setSession((prev) =>
       prev
@@ -722,7 +722,7 @@ function QuestionContent() {
         <div className="header-row">
           <h1>Welcome, {session.name}</h1>
           <span>
-            Stage {Math.min(session.currentStageIndex + 1, STAGES.length)} of {STAGES.length}
+            Question {Math.min(session.currentStageIndex + 1, STAGES.length)} of {STAGES.length}
           </span>
         </div>
         <div className="header-row">
@@ -756,10 +756,11 @@ function QuestionContent() {
         {hasCompleted ? (
           <div className="stack">
             <h2>Jin Gyan Complete</h2>
-            <p>You solved all categories for {today}.</p>
+            <p>You solved all 10 questions for {today}.</p>
+            <p>Score: {completedScore}</p>
             <p>Total solve time: {Math.round(totalSolvedSeconds)} seconds.</p>
-            <button type="button" onClick={() => router.push(`/leaderboard?playerId=${session.id}`)}>
-              View Leaderboard
+            <button type="button" onClick={() => router.push(`/jin-leaderboard?playerId=${session.id}`)}>
+              Open Jin Leaderboard
             </button>
           </div>
         ) : pendingTrivia ? (
@@ -863,6 +864,7 @@ function QuestionContent() {
 
         <section className="attempts">
           <h3>Today&apos;s Attempt History</h3>
+          <p><strong>Score:</strong> {completedScore}</p>
           {attempts.length === 0 ? (
             <p>No attempts yet.</p>
           ) : (

@@ -5,14 +5,16 @@ Front-end trivia game with:
 - Language selection at signup (`English` or `Hindi`)
 - Daily question sets (different questions per date)
 - 5 fixed categories in order: `Easy -> Medium -> Hard -> Difficult -> Expert`
-- Random question pick per category (from that day’s pool)
+- 10 questions per player each day, using two ordered rounds of `Easy -> Medium -> Hard -> Difficult -> Expert`
+- Random question pick within the current category (from that day’s pool)
 - Supports three question types: `mcq`, `image_puzzle`, and `fill_blank`
 - Optional answer trivia after submission/solve, controlled per question
 - In-game English/Hindi toggle with per-player language preference
 - Progression only on correct answer
-- Redirect to `/leaderboard` after correct `Expert` answer
+- Leaderboard available at `/jin-leaderboard`
 - Daily score reset behavior (new date starts a fresh run)
 - Device session persistence using stored `playerId` (resume after tab/browser close)
+- Re-entering the same `name` + `number` resumes the latest matching player session
 - Admin page at `/admin` (username `admin`, password `admin`) to add day-wise categorized questions
 
 ## Tech
@@ -75,13 +77,14 @@ Tables:
 
 1. Player registers.
 2. App loads today’s question set.
-3. One random question is selected for each category and persisted for that player/day.
-4. `MCQ` answers are single-attempt and immediately advance to the next category after submission.
-5. `Fill In The Blank` and `Image Puzzle` advance only on correct submission/solve.
-6. If enabled for the question, trivia text/image is shown before the next category or leaderboard.
-7. On correct `Expert` answer, player is redirected to `/leaderboard`.
-8. On date change, player daily progress and score are reset automatically.
-9. Reopening the app resumes the same player session from local storage unless user starts a new player.
+3. One random question is selected for each stage and persisted for that player/day.
+4. Each player gets 10 questions per day in this fixed order: `Easy -> Medium -> Hard -> Difficult -> Expert -> Easy -> Medium -> Hard -> Difficult -> Expert`.
+5. `MCQ` answers are single-attempt and immediately advance to the next category after submission.
+6. `Fill In The Blank` and `Image Puzzle` advance only on correct submission/solve.
+7. If enabled for the question, trivia text/image is shown before the next stage.
+8. After finishing all 10 questions, the player stays on the completion screen. Leaderboard is available separately at `/jin-leaderboard`.
+9. On date change, player daily progress and score are reset automatically.
+10. Reopening the app resumes the same player session from local storage, and re-entering the same `name` + `number` resumes the latest matching session.
 
 ## 5. Deploy on Vercel
 

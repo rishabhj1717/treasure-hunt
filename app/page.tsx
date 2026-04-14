@@ -46,34 +46,66 @@ export default function HomePage() {
     setLoading(true);
 
     try {
-      const playerId = crypto.randomUUID();
       const nowIso = new Date().toISOString();
       const todayIso = new Date().toISOString().slice(0, 10);
 
-      const { data, error: insertError } = await supabase
+      const { data: existingPlayer, error: lookupError } = await supabase
         .from("players")
-        .insert({
-          id: playerId,
-          name: cleanedName,
-          phone: cleanedPhone,
-          preferred_language: language,
-          current_stage_index: 0,
-          active_game_date: todayIso,
-          stage_question_ids: {},
-          daily_completed_at: null,
-          daily_total_time_seconds: null,
-          created_at: nowIso,
-          last_login_at: nowIso,
-        })
         .select("id")
-        .single();
+        .eq("name", cleanedName)
+        .eq("phone", cleanedPhone)
+        .order("last_login_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (insertError || !data?.id) {
-        throw new Error(insertError?.message || "Registration insert failed");
+      if (lookupError) {
+        throw new Error(lookupError.message);
       }
 
-      window.localStorage.setItem(PLAYER_ID_STORAGE_KEY, data.id);
-      router.push(`/question?playerId=${data.id}`);
+      let playerId = existingPlayer?.id ?? null;
+
+      if (playerId) {
+        const { error: updateError } = await supabase
+          .from("players")
+          .update({
+            preferred_language: language,
+            last_login_at: nowIso
+          })
+          .eq("id", playerId);
+
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
+      } else {
+        playerId = crypto.randomUUID();
+
+        const { data, error: insertError } = await supabase
+          .from("players")
+          .insert({
+            id: playerId,
+            name: cleanedName,
+            phone: cleanedPhone,
+            preferred_language: language,
+            current_stage_index: 0,
+            active_game_date: todayIso,
+            stage_question_ids: {},
+            daily_completed_at: null,
+            daily_total_time_seconds: null,
+            created_at: nowIso,
+            last_login_at: nowIso
+          })
+          .select("id")
+          .single();
+
+        if (insertError || !data?.id) {
+          throw new Error(insertError?.message || "Registration insert failed");
+        }
+
+        playerId = data.id;
+      }
+
+      window.localStorage.setItem(PLAYER_ID_STORAGE_KEY, playerId);
+      router.push(`/question?playerId=${playerId}`);
     } catch (err) {
       const message =
         err instanceof Error
