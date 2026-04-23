@@ -11,7 +11,6 @@ Front-end trivia game with:
 - Optional answer trivia after submission/solve, controlled per question
 - In-game English/Hindi toggle with per-player language preference
 - Progression only on correct answer
-- Leaderboard available at `/jin-leaderboard`
 - Daily score reset behavior (new date starts a fresh run)
 - Device session persistence using stored `playerId` (resume after tab/browser close)
 - Re-entering the same `name` + `number` resumes the latest matching player session
@@ -82,7 +81,7 @@ Tables:
 5. `MCQ` answers are single-attempt and immediately advance to the next category after submission.
 6. `Fill In The Blank` and `Image Puzzle` advance only on correct submission/solve.
 7. If enabled for the question, trivia text/image is shown before the next stage.
-8. After finishing all 10 questions, the player stays on the completion screen. Leaderboard is available separately at `/jin-leaderboard`.
+8. After finishing all 10 questions, the player stays on the completion screen.
 9. On date change, player daily progress and score are reset automatically.
 10. Reopening the app resumes the same player session from local storage, and re-entering the same `name` + `number` resumes the latest matching session.
 

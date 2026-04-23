@@ -75,11 +75,23 @@ type PendingTrivia = {
   message: string;
 };
 
-const STAGES: Category[] = ["easy", "medium", "hard", "difficult", "expert", "easy", "medium", "hard", "difficult", "expert"];
+const STAGES: Category[] = [
+  "easy",
+  "medium",
+  "hard",
+  "difficult",
+  "expert",
+  "easy",
+  "medium",
+  "hard",
+  "difficult",
+  "expert",
+];
 const PLAYER_ID_STORAGE_KEY = "jin_gyan_player_id";
 const PUZZLE_SIZE = 3;
 const getStageKey = (stageIndex: number) => `stage_${stageIndex}`;
-const clampScore = (value: number) => Math.min(Math.max(value, 0), STAGES.length);
+const clampScore = (value: number) =>
+  Math.min(Math.max(value, 0), STAGES.length);
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -89,7 +101,8 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-const pickRandom = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+const pickRandom = <T,>(items: T[]): T =>
+  items[Math.floor(Math.random() * items.length)];
 const shuffleArray = <T,>(items: T[]) => {
   const shuffled = [...items];
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
@@ -114,8 +127,21 @@ const shuffleTiles = (size: number) => {
   return items;
 };
 
-const isSolvedTiles = (tiles: number[]) => tiles.every((value, idx) => value === idx);
-const normalizeText = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
+const isSolvedTiles = (tiles: number[]) =>
+  tiles.every((value, idx) => value === idx);
+const normalizeText = (value: string) =>
+  value.trim().replace(/\s+/g, " ").toLowerCase();
+const getScoreFromAttempts = (attemptRows: AttemptRecord[]) => {
+  const completedQuestions = new Set<string>();
+
+  for (const attempt of attemptRows) {
+    if (attempt.questionType === "mcq" || attempt.correct) {
+      completedQuestions.add(attempt.questionId);
+    }
+  }
+
+  return clampScore(completedQuestions.size);
+};
 
 function QuestionContent() {
   const router = useRouter();
@@ -125,28 +151,40 @@ function QuestionContent() {
   const [playerIdResolved, setPlayerIdResolved] = useState(false);
 
   const [session, setSession] = useState<PlayerSession | null>(null);
-  const [questionsById, setQuestionsById] = useState<Record<string, GameQuestion>>({});
-  const [questionsByCategory, setQuestionsByCategory] = useState<Record<Category, GameQuestion[]>>({
+  const [questionsById, setQuestionsById] = useState<
+    Record<string, GameQuestion>
+  >({});
+  const [questionsByCategory, setQuestionsByCategory] = useState<
+    Record<Category, GameQuestion[]>
+  >({
     easy: [],
     medium: [],
     hard: [],
     difficult: [],
-    expert: []
+    expert: [],
   });
   const [selectedOption, setSelectedOption] = useState("");
-  const [shuffledOptions, setShuffledOptions] = useState<GameQuestion["options"]>([]);
+  const [shuffledOptions, setShuffledOptions] = useState<
+    GameQuestion["options"]
+  >([]);
   const [fillBlankAnswer, setFillBlankAnswer] = useState("");
   const [language, setLanguage] = useState<Language>("english");
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
-  const [questionShownAtMs, setQuestionShownAtMs] = useState<number | null>(null);
+  const [questionShownAtMs, setQuestionShownAtMs] = useState<number | null>(
+    null,
+  );
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [pendingTrivia, setPendingTrivia] = useState<PendingTrivia | null>(null);
+  const [pendingTrivia, setPendingTrivia] = useState<PendingTrivia | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
   const [puzzleTiles, setPuzzleTiles] = useState<number[]>([]);
-  const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null);
+  const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(
+    null,
+  );
   const [puzzleQuestionId, setPuzzleQuestionId] = useState<string | null>(null);
 
   const today = getLocalDateString();
@@ -164,7 +202,8 @@ function QuestionContent() {
       return null;
     }
 
-    const questionId = session.stageQuestionIds[getStageKey(session.currentStageIndex)];
+    const questionId =
+      session.stageQuestionIds[getStageKey(session.currentStageIndex)];
     if (!questionId) {
       return null;
     }
@@ -178,21 +217,29 @@ function QuestionContent() {
     stageIndex: number,
     existingIds: Record<string, string>,
     byCategory: Record<Category, GameQuestion[]>,
-    byId: Record<string, GameQuestion>
+    byId: Record<string, GameQuestion>,
   ) => {
     if (stageIndex >= STAGES.length) {
-      return { updatedIds: existingIds, missingCategory: null as Category | null };
+      return {
+        updatedIds: existingIds,
+        missingCategory: null as Category | null,
+      };
     }
 
     const stage = STAGES[stageIndex];
     const stageKey = getStageKey(stageIndex);
     const alreadySelected = existingIds[stageKey];
     if (alreadySelected && byId[alreadySelected]) {
-      return { updatedIds: existingIds, missingCategory: null as Category | null };
+      return {
+        updatedIds: existingIds,
+        missingCategory: null as Category | null,
+      };
     }
 
     const usedQuestionIds = new Set(Object.values(existingIds));
-    const pool = (byCategory[stage] ?? []).filter((question) => !usedQuestionIds.has(question.id));
+    const pool = (byCategory[stage] ?? []).filter(
+      (question) => !usedQuestionIds.has(question.id),
+    );
     if (pool.length === 0) {
       return { updatedIds: existingIds, missingCategory: stage };
     }
@@ -201,16 +248,18 @@ function QuestionContent() {
     return {
       updatedIds: {
         ...existingIds,
-        [stageKey]: chosen.id
+        [stageKey]: chosen.id,
       },
-      missingCategory: null as Category | null
+      missingCategory: null as Category | null,
     };
   };
 
   const loadAttempts = async (id: string) => {
     const { data, error: attemptsError } = await supabase
       .from("attempts")
-      .select("id, question_id, category, selected_option_id, selected_option_label, correct, time_taken_seconds, submitted_at")
+      .select(
+        "id, question_id, category, selected_option_id, selected_option_label, correct, time_taken_seconds, submitted_at",
+      )
       .eq("player_id", id)
       .eq("game_date", today)
       .order("submitted_at", { ascending: true });
@@ -232,7 +281,7 @@ function QuestionContent() {
       selectedOptionLabel: item.selected_option_label,
       correct: item.correct,
       timeTakenSeconds: item.time_taken_seconds,
-      submittedAt: item.submitted_at
+      submittedAt: item.submitted_at,
     }));
 
     setAttempts(rows);
@@ -243,7 +292,7 @@ function QuestionContent() {
     const { data, error: questionsError } = await supabase
       .from("questions")
       .select(
-        "id, game_date, category, question_type, image_url, prompt, prompt_hi, show_trivia, trivia_text, trivia_text_hi, trivia_image_url, answer_text, answer_text_hi, option_a, option_a_hi, option_b, option_b_hi, option_c, option_c_hi, option_d, option_d_hi, correct_option_id"
+        "id, game_date, category, question_type, image_url, prompt, prompt_hi, show_trivia, trivia_text, trivia_text_hi, trivia_image_url, answer_text, answer_text_hi, option_a, option_a_hi, option_b, option_b_hi, option_c, option_c_hi, option_d, option_d_hi, correct_option_id",
       )
       .eq("game_date", today)
       .order("created_at", { ascending: true });
@@ -259,7 +308,7 @@ function QuestionContent() {
       medium: [],
       hard: [],
       difficult: [],
-      expert: []
+      expert: [],
     };
 
     for (const row of rows) {
@@ -270,12 +319,12 @@ function QuestionContent() {
         imageUrl: row.image_url,
         prompt: {
           english: row.prompt,
-          hindi: row.prompt_hi ?? row.prompt
+          hindi: row.prompt_hi ?? row.prompt,
         },
         showTrivia: !!row.show_trivia,
         triviaText: {
           english: row.trivia_text ?? "",
-          hindi: row.trivia_text_hi ?? row.trivia_text ?? ""
+          hindi: row.trivia_text_hi ?? row.trivia_text ?? "",
         },
         triviaImageUrl: row.trivia_image_url,
         options: [
@@ -283,35 +332,38 @@ function QuestionContent() {
             id: "a",
             label: {
               english: row.option_a ?? "",
-              hindi: row.option_a_hi ?? row.option_a ?? ""
-            }
+              hindi: row.option_a_hi ?? row.option_a ?? "",
+            },
           },
           {
             id: "b",
             label: {
               english: row.option_b ?? "",
-              hindi: row.option_b_hi ?? row.option_b ?? ""
-            }
+              hindi: row.option_b_hi ?? row.option_b ?? "",
+            },
           },
           {
             id: "c",
             label: {
               english: row.option_c ?? "",
-              hindi: row.option_c_hi ?? row.option_c ?? ""
-            }
+              hindi: row.option_c_hi ?? row.option_c ?? "",
+            },
           },
           {
             id: "d",
             label: {
               english: row.option_d ?? "",
-              hindi: row.option_d_hi ?? row.option_d ?? ""
-            }
-          }
+              hindi: row.option_d_hi ?? row.option_d ?? "",
+            },
+          },
         ],
         acceptedAnswers: [row.answer_text, row.answer_text_hi]
-          .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          .filter(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          )
           .map((value) => normalizeText(value)),
-        correctOptionId: row.correct_option_id
+        correctOptionId: row.correct_option_id,
       };
 
       byId[row.id] = mapped;
@@ -341,10 +393,12 @@ function QuestionContent() {
           loadTodayQuestions(),
           supabase
             .from("players")
-            .select("id, name, phone, preferred_language, current_stage_index, active_game_date, stage_question_ids")
+            .select(
+              "id, name, phone, preferred_language, current_stage_index, active_game_date, stage_question_ids",
+            )
             .eq("id", playerId)
             .single(),
-          loadAttempts(playerId)
+          loadAttempts(playerId),
         ]);
 
         const { data: playerData, error: playerError } = playerResp;
@@ -357,35 +411,53 @@ function QuestionContent() {
         }
 
         const needsDailyReset = playerData.active_game_date !== today;
-        const isFreshForToday = attemptRows.length === 0;
+        const derivedScore = needsDailyReset
+          ? 0
+          : getScoreFromAttempts(attemptRows);
+        const isFreshForToday = derivedScore === 0;
 
-        let currentStageIndex = needsDailyReset || isFreshForToday ? 0 : clampScore(playerData.current_stage_index ?? 0);
+        let currentStageIndex = derivedScore;
 
-        const existingStageQuestionIds = (needsDailyReset ? {} : playerData.stage_question_ids ?? {}) as Record<string, string>;
+        const existingStageQuestionIds = (
+          needsDailyReset ? {} : (playerData.stage_question_ids ?? {})
+        ) as Record<string, string>;
         let stageQuestionIds = { ...existingStageQuestionIds };
 
         // Backward compatibility for older 5-stage category-keyed progress.
         if (!needsDailyReset) {
           STAGES.slice(0, 5).forEach((category, index) => {
             const stageKey = getStageKey(index);
-            if (!stageQuestionIds[stageKey] && existingStageQuestionIds[category]) {
+            if (
+              !stageQuestionIds[stageKey] &&
+              existingStageQuestionIds[category]
+            ) {
               stageQuestionIds[stageKey] = existingStageQuestionIds[category];
             }
           });
         }
 
-        const ensured = ensureStageQuestion(currentStageIndex, stageQuestionIds, questionData.byCategory, questionData.byId);
+        const ensured = ensureStageQuestion(
+          currentStageIndex,
+          stageQuestionIds,
+          questionData.byCategory,
+          questionData.byId,
+        );
         stageQuestionIds = ensured.updatedIds;
 
         if (ensured.missingCategory) {
-          setError(`No ${ensured.missingCategory.toUpperCase()} questions found for ${today}.`);
+          setError(
+            `No ${ensured.missingCategory.toUpperCase()} questions found for ${today}.`,
+          );
         }
 
         const shouldPersist =
           needsDailyReset ||
           isFreshForToday ||
-          JSON.stringify(stageQuestionIds) !== JSON.stringify((playerData.stage_question_ids ?? {}) as Record<string, string>) ||
-          currentStageIndex !== (playerData.current_stage_index ?? 0);
+          JSON.stringify(stageQuestionIds) !==
+            JSON.stringify(
+              (playerData.stage_question_ids ?? {}) as Record<string, string>,
+            ) ||
+          currentStageIndex !== clampScore(playerData.current_stage_index ?? 0);
 
         if (shouldPersist) {
           const { error: syncError } = await supabase
@@ -396,7 +468,7 @@ function QuestionContent() {
               stage_question_ids: stageQuestionIds,
               daily_completed_at: needsDailyReset ? null : undefined,
               daily_total_time_seconds: needsDailyReset ? null : undefined,
-              last_login_at: new Date().toISOString()
+              last_login_at: new Date().toISOString(),
             })
             .eq("id", playerId);
 
@@ -409,14 +481,16 @@ function QuestionContent() {
           id: playerData.id,
           name: playerData.name,
           phone: playerData.phone,
-          preferredLanguage: (playerData.preferred_language ?? "english") as Language,
+          preferredLanguage: (playerData.preferred_language ??
+            "english") as Language,
           currentStageIndex,
           activeGameDate: today,
-          stageQuestionIds
+          stageQuestionIds,
         });
         setLanguage((playerData.preferred_language ?? "english") as Language);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unable to load your game.";
+        const message =
+          err instanceof Error ? err.message : "Unable to load your game.";
         setError(message);
       } finally {
         setBootstrapping(false);
@@ -455,7 +529,11 @@ function QuestionContent() {
     setSelectedOption("");
     setFillBlankAnswer("");
     setSuccessMessage("");
-    setShuffledOptions(currentQuestion.questionType === "mcq" ? shuffleArray(currentQuestion.options) : []);
+    setShuffledOptions(
+      currentQuestion.questionType === "mcq"
+        ? shuffleArray(currentQuestion.options)
+        : [],
+    );
 
     if (currentQuestion.questionType === "image_puzzle") {
       if (puzzleQuestionId !== currentQuestion.id) {
@@ -466,22 +544,27 @@ function QuestionContent() {
     }
   }, [currentQuestion, hasCompleted, puzzleQuestionId]);
 
-  const completedScore = clampScore(session?.currentStageIndex ?? 0);
+  const completedScore = getScoreFromAttempts(attempts);
 
-  const totalSolvedSeconds = attempts.reduce((total, attempt) => total + attempt.timeTakenSeconds, 0);
+  const totalSolvedSeconds = attempts.reduce(
+    (total, attempt) => total + attempt.timeTakenSeconds,
+    0,
+  );
 
   const submitProgress = async (
     selectedOptionId: string,
     selectedOptionLabel: string,
     isCorrect: boolean,
-    advanceOnWrong: boolean
+    advanceOnWrong: boolean,
   ) => {
     if (!session || !currentQuestion || !currentCategory) {
       return;
     }
 
     const now = Date.now();
-    const timeTakenSeconds = questionShownAtMs ? Math.max(1, Math.round((now - questionShownAtMs) / 1000)) : 0;
+    const timeTakenSeconds = questionShownAtMs
+      ? Math.max(1, Math.round((now - questionShownAtMs) / 1000))
+      : 0;
 
     const { error: attemptError } = await supabase.from("attempts").insert({
       id: crypto.randomUUID(),
@@ -494,7 +577,7 @@ function QuestionContent() {
       selected_option_label: selectedOptionLabel,
       correct: isCorrect,
       time_taken_seconds: timeTakenSeconds,
-      submitted_at: new Date().toISOString()
+      submitted_at: new Date().toISOString(),
     });
 
     if (attemptError) {
@@ -510,7 +593,12 @@ function QuestionContent() {
     const nextStageIndex = clampScore(session.currentStageIndex + 1);
     let nextStageQuestionIds = { ...session.stageQuestionIds };
 
-    const ensuredNext = ensureStageQuestion(nextStageIndex, nextStageQuestionIds, questionsByCategory, questionsById);
+    const ensuredNext = ensureStageQuestion(
+      nextStageIndex,
+      nextStageQuestionIds,
+      questionsByCategory,
+      questionsById,
+    );
     nextStageQuestionIds = ensuredNext.updatedIds;
 
     const solvedTotalAfter = totalSolvedSeconds + timeTakenSeconds;
@@ -518,24 +606,31 @@ function QuestionContent() {
       current_stage_index: nextStageIndex,
       stage_question_ids: nextStageQuestionIds,
       last_login_at: new Date().toISOString(),
-      daily_total_time_seconds: solvedTotalAfter
+      daily_total_time_seconds: solvedTotalAfter,
     };
 
     if (nextStageIndex >= STAGES.length) {
       updates.daily_completed_at = new Date().toISOString();
     }
 
-    const { error: updateError } = await supabase.from("players").update(updates).eq("id", session.id);
+    const { error: updateError } = await supabase
+      .from("players")
+      .update(updates)
+      .eq("id", session.id);
 
     if (updateError) {
       throw updateError;
     }
 
     if (ensuredNext.missingCategory) {
-      setError(`No ${ensuredNext.missingCategory.toUpperCase()} questions found for ${today}.`);
+      setError(
+        `No ${ensuredNext.missingCategory.toUpperCase()} questions found for ${today}.`,
+      );
     }
 
-    const message = advanceOnWrong ? "Answer recorded. Next category unlocked." : "Correct answer. Next category unlocked.";
+    const message = advanceOnWrong
+      ? "Answer recorded. Next category unlocked."
+      : "Correct answer. Next category unlocked.";
     const hasTrivia =
       currentQuestion.showTrivia &&
       (!!currentQuestion.triviaText.english.trim() ||
@@ -549,7 +644,7 @@ function QuestionContent() {
         question: currentQuestion,
         nextStageIndex,
         nextStageQuestionIds,
-        message
+        message,
       });
       return;
     }
@@ -559,9 +654,9 @@ function QuestionContent() {
         ? {
             ...prev,
             currentStageIndex: nextStageIndex,
-            stageQuestionIds: nextStageQuestionIds
+            stageQuestionIds: nextStageQuestionIds,
           }
-        : prev
+        : prev,
     );
 
     setSuccessMessage(message);
@@ -580,9 +675,9 @@ function QuestionContent() {
         ? {
             ...prev,
             currentStageIndex: nextStageIndex,
-            stageQuestionIds: nextStageQuestionIds
+            stageQuestionIds: nextStageQuestionIds,
           }
-        : prev
+        : prev,
     );
     setSuccessMessage(message);
   };
@@ -605,7 +700,9 @@ function QuestionContent() {
       return;
     }
 
-    const chosenOption = currentQuestion.options.find((option) => option.id === selectedOption);
+    const chosenOption = currentQuestion.options.find(
+      (option) => option.id === selectedOption,
+    );
     if (!chosenOption) {
       setError("Invalid option selected.");
       return;
@@ -615,7 +712,12 @@ function QuestionContent() {
 
     setLoading(true);
     try {
-      await submitProgress(chosenOption.id, chosenOption.label[language], isCorrect, true);
+      await submitProgress(
+        chosenOption.id,
+        chosenOption.label[language],
+        isCorrect,
+        true,
+      );
     } catch {
       setError("Could not submit answer. Try again.");
     } finally {
@@ -624,7 +726,11 @@ function QuestionContent() {
   };
 
   const handleTileClick = async (index: number) => {
-    if (!currentQuestion || currentQuestion.questionType !== "image_puzzle" || loading) {
+    if (
+      !currentQuestion ||
+      currentQuestion.questionType !== "image_puzzle" ||
+      loading
+    ) {
       return;
     }
 
@@ -639,7 +745,10 @@ function QuestionContent() {
     }
 
     const updated = [...puzzleTiles];
-    [updated[selectedTileIndex], updated[index]] = [updated[index], updated[selectedTileIndex]];
+    [updated[selectedTileIndex], updated[index]] = [
+      updated[index],
+      updated[selectedTileIndex],
+    ];
     setSelectedTileIndex(null);
     setPuzzleTiles(updated);
 
@@ -662,7 +771,12 @@ function QuestionContent() {
     setError("");
     setSuccessMessage("");
 
-    if (!session || !currentQuestion || !currentCategory || currentQuestion.questionType !== "fill_blank") {
+    if (
+      !session ||
+      !currentQuestion ||
+      !currentCategory ||
+      currentQuestion.questionType !== "fill_blank"
+    ) {
       return;
     }
 
@@ -673,7 +787,8 @@ function QuestionContent() {
     }
 
     const normalizedAnswer = normalizeText(submittedAnswer);
-    const isCorrect = currentQuestion.acceptedAnswers.includes(normalizedAnswer);
+    const isCorrect =
+      currentQuestion.acceptedAnswers.includes(normalizedAnswer);
 
     setLoading(true);
     try {
@@ -720,7 +835,10 @@ function QuestionContent() {
       <main className="page">
         <section className="card stack">
           <h1>Jin Gyan</h1>
-          <p className="error">{error || `No ${currentCategory?.toUpperCase()} question available for ${today}.`}</p>
+          <p className="error">
+            {error ||
+              `No ${currentCategory?.toUpperCase()} question available for ${today}.`}
+          </p>
         </section>
       </main>
     );
@@ -732,30 +850,50 @@ function QuestionContent() {
         <div className="header-row">
           <h1>Welcome, {session.name}</h1>
           <span>
-            Question {Math.min(session.currentStageIndex + 1, STAGES.length)} of {STAGES.length}
+            Question {Math.min(session.currentStageIndex + 1, STAGES.length)} of{" "}
+            {STAGES.length}
           </span>
         </div>
         <div className="header-row">
-          <span><strong>Language:</strong> {language === "english" ? "English" : "Hindi"}</span>
+          <span>
+            <strong>Language:</strong>{" "}
+            {language === "english" ? "English" : "Hindi"}
+          </span>
           <div className="language-toggle">
             <button
               type="button"
-              className={language === "english" ? "toggle-button active" : "toggle-button"}
+              className={
+                language === "english"
+                  ? "toggle-button active"
+                  : "toggle-button"
+              }
               onClick={() => {
                 setLanguage("english");
-                setSession((prev) => (prev ? { ...prev, preferredLanguage: "english" } : prev));
-                void supabase.from("players").update({ preferred_language: "english" }).eq("id", session.id);
+                setSession((prev) =>
+                  prev ? { ...prev, preferredLanguage: "english" } : prev,
+                );
+                void supabase
+                  .from("players")
+                  .update({ preferred_language: "english" })
+                  .eq("id", session.id);
               }}
             >
               English
             </button>
             <button
               type="button"
-              className={language === "hindi" ? "toggle-button active" : "toggle-button"}
+              className={
+                language === "hindi" ? "toggle-button active" : "toggle-button"
+              }
               onClick={() => {
                 setLanguage("hindi");
-                setSession((prev) => (prev ? { ...prev, preferredLanguage: "hindi" } : prev));
-                void supabase.from("players").update({ preferred_language: "hindi" }).eq("id", session.id);
+                setSession((prev) =>
+                  prev ? { ...prev, preferredLanguage: "hindi" } : prev,
+                );
+                void supabase
+                  .from("players")
+                  .update({ preferred_language: "hindi" })
+                  .eq("id", session.id);
               }}
             >
               Hindi
@@ -769,15 +907,17 @@ function QuestionContent() {
             <p>You solved all 10 questions for {today}.</p>
             <p>Score: {completedScore}</p>
             <p>Total solve time: {Math.round(totalSolvedSeconds)} seconds.</p>
-            <button type="button" onClick={() => router.push(`/jin-leaderboard?playerId=${session.id}`)}>
-              Open Jin Leaderboard
-            </button>
           </div>
         ) : pendingTrivia ? (
           <div className="stack">
-            <p><strong>Category:</strong> {pendingTrivia.question.category.toUpperCase()}</p>
+            <p>
+              <strong>Category:</strong>{" "}
+              {pendingTrivia.question.category.toUpperCase()}
+            </p>
             <h2>Answer Trivia</h2>
-            {pendingTrivia.question.triviaText[language] && <p>{pendingTrivia.question.triviaText[language]}</p>}
+            {pendingTrivia.question.triviaText[language] && (
+              <p>{pendingTrivia.question.triviaText[language]}</p>
+            )}
             {pendingTrivia.question.triviaImageUrl && (
               <img
                 className="trivia-image"
@@ -791,10 +931,15 @@ function QuestionContent() {
           </div>
         ) : currentQuestion?.questionType === "image_puzzle" ? (
           <div className="stack">
-            <p><strong>Category:</strong> {currentQuestion.category.toUpperCase()}</p>
+            <p>
+              <strong>Category:</strong>{" "}
+              {currentQuestion.category.toUpperCase()}
+            </p>
             <h2>{currentQuestion.prompt[language]}</h2>
             {!currentQuestion.imageUrl ? (
-              <p className="error">Puzzle image is missing for this question.</p>
+              <p className="error">
+                Puzzle image is missing for this question.
+              </p>
             ) : (
               <>
                 <p>Rearrange tiles to complete the image.</p>
@@ -808,14 +953,16 @@ function QuestionContent() {
                       <button
                         key={`${tile}-${index}`}
                         type="button"
-                        className={selected ? "puzzle-tile selected" : "puzzle-tile"}
+                        className={
+                          selected ? "puzzle-tile selected" : "puzzle-tile"
+                        }
                         onClick={() => {
                           void handleTileClick(index);
                         }}
                         style={{
                           backgroundImage: `url(${currentQuestion.imageUrl})`,
                           backgroundSize: `${PUZZLE_SIZE * 100}% ${PUZZLE_SIZE * 100}%`,
-                          backgroundPosition: `${(col / (PUZZLE_SIZE - 1)) * 100}% ${(row / (PUZZLE_SIZE - 1)) * 100}%`
+                          backgroundPosition: `${(col / (PUZZLE_SIZE - 1)) * 100}% ${(row / (PUZZLE_SIZE - 1)) * 100}%`,
                         }}
                         aria-label={`Tile ${index + 1}`}
                       />
@@ -828,7 +975,10 @@ function QuestionContent() {
           </div>
         ) : currentQuestion?.questionType === "fill_blank" ? (
           <form onSubmit={handleFillBlankSubmit} className="stack">
-            <p><strong>Category:</strong> {currentQuestion.category.toUpperCase()}</p>
+            <p>
+              <strong>Category:</strong>{" "}
+              {currentQuestion.category.toUpperCase()}
+            </p>
             <h2>{currentQuestion.prompt[language]}</h2>
             <label htmlFor="fill-blank-answer">Your Answer</label>
             <input
@@ -836,16 +986,21 @@ function QuestionContent() {
               type="text"
               value={fillBlankAnswer}
               onChange={(event) => setFillBlankAnswer(event.target.value)}
-              placeholder={language === "english" ? "Type your answer" : "अपना उत्तर लिखें"}
+              placeholder={
+                language === "english" ? "Type your answer" : "अपना उत्तर लिखें"
+              }
               autoComplete="off"
             />
             <button type="submit" disabled={loading}>
-              {loading ? "Submitting..." : "Submit Answer"}
+              {loading ? "Submitting..." : "Submit Answer / उत्तर करें"}
             </button>
           </form>
         ) : (
           <form onSubmit={handleSubmit} className="stack">
-            <p><strong>Category:</strong> {currentQuestion?.category.toUpperCase()}</p>
+            <p>
+              <strong>Category:</strong>{" "}
+              {currentQuestion?.category.toUpperCase()}
+            </p>
             <h2>{currentQuestion?.prompt[language]}</h2>
             <fieldset className="options-grid">
               <legend className="sr-only">Choose one option</legend>
@@ -864,7 +1019,7 @@ function QuestionContent() {
             </fieldset>
 
             <button type="submit" disabled={loading}>
-              {loading ? "Submitting..." : "Submit Answer"}
+              {loading ? "Submitting..." : "Submit Answer / उत्तर करें"}
             </button>
           </form>
         )}
@@ -874,7 +1029,9 @@ function QuestionContent() {
 
         <section className="attempts">
           <h3>Today&apos;s Attempt History</h3>
-          <p><strong>Score:</strong> {completedScore}</p>
+          <p>
+            <strong>Score:</strong> {completedScore}
+          </p>
           {attempts.length === 0 ? (
             <p>No attempts yet.</p>
           ) : (

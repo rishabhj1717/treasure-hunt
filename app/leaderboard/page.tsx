@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -8,13 +8,14 @@ type PlayerRow = {
   id: string;
   name: string;
   phone: string;
-  current_stage_index: number;
   daily_completed_at: string | null;
   daily_total_time_seconds: number | null;
 };
 
 type AttemptRow = {
   player_id: string;
+  question_id: string;
+  selected_option_id: string;
   correct: boolean;
   time_taken_seconds: number;
 };
@@ -30,6 +31,26 @@ type LeaderboardRow = {
 
 const MAX_SCORE = 10;
 const clampScore = (value: number) => Math.min(Math.max(value, 0), MAX_SCORE);
+const getScoreFromAttempts = (attempts: AttemptRow[]) => {
+  const completedQuestions = new Set<string>();
+
+  for (const attempt of attempts) {
+    if (
+      attempt.question_id &&
+      attempt.selected_option_id !== "fill_blank" &&
+      attempt.selected_option_id !== "solved"
+    ) {
+      completedQuestions.add(attempt.question_id);
+      continue;
+    }
+
+    if (attempt.correct && attempt.question_id) {
+      completedQuestions.add(attempt.question_id);
+    }
+  }
+
+  return clampScore(completedQuestions.size);
+};
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -43,25 +64,38 @@ function LeaderboardContent() {
   const searchParams = useSearchParams();
   const playerId = searchParams.get("playerId");
 
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [authError, setAuthError] = useState("");
+
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const today = getLocalDateString();
 
   useEffect(() => {
+    if (!isAuthed) {
+      return;
+    }
+
     const load = async () => {
       setError("");
       setLoading(true);
 
       try {
-        const [{ data: playersData, error: playersError }, { data: attemptsData, error: attemptsError }] = await Promise.all([
-          supabase
-            .from("players")
-            .select("id, name, phone, current_stage_index, daily_completed_at, daily_total_time_seconds")
-            .eq("active_game_date", today),
-          supabase.from("attempts").select("player_id, correct, time_taken_seconds").eq("game_date", today)
-        ]);
+        const [{ data: playersData, error: playersError }, { data: attemptsData, error: attemptsError }] =
+          await Promise.all([
+            supabase
+              .from("players")
+              .select("id, name, phone, daily_completed_at, daily_total_time_seconds")
+              .eq("active_game_date", today),
+            supabase
+              .from("attempts")
+              .select("player_id, question_id, selected_option_id, correct, time_taken_seconds")
+              .eq("game_date", today)
+          ]);
 
         if (playersError) {
           throw playersError;
@@ -83,8 +117,11 @@ function LeaderboardContent() {
 
         const leaderboard: LeaderboardRow[] = players.map((player) => {
           const playerAttempts = attemptsByPlayer.get(player.id) ?? [];
-          const score = clampScore(player.current_stage_index ?? 0);
-          const totalTimeFromAttempts = playerAttempts.reduce((sum, attempt) => sum + attempt.time_taken_seconds, 0);
+          const score = getScoreFromAttempts(playerAttempts);
+          const totalTimeFromAttempts = playerAttempts.reduce(
+            (sum, attempt) => sum + attempt.time_taken_seconds,
+            0
+          );
 
           return {
             playerId: player.id,
@@ -106,7 +143,8 @@ function LeaderboardContent() {
 
         setRows(leaderboard);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to load leaderboard.";
+        const message =
+          err instanceof Error ? err.message : "Failed to load leaderboard.";
         setError(message);
       } finally {
         setLoading(false);
@@ -114,7 +152,7 @@ function LeaderboardContent() {
     };
 
     void load();
-  }, [today]);
+  }, [isAuthed, today]);
 
   const myRank = useMemo(() => {
     if (!playerId) {
@@ -125,12 +163,60 @@ function LeaderboardContent() {
     return index >= 0 ? index + 1 : null;
   }, [rows, playerId]);
 
+  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAuthError("");
+
+    if (username === "admin" && password === "admin") {
+      setIsAuthed(true);
+      return;
+    }
+
+    setAuthError("Invalid credentials.");
+  };
+
+  if (!isAuthed) {
+    return (
+      <main className="page">
+        <section className="card stack">
+          <h1>Leaderboard Login</h1>
+          <form onSubmit={handleLogin} className="stack">
+            <label htmlFor="leaderboard-username">Username</label>
+            <input
+              id="leaderboard-username"
+              type="text"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Enter username"
+            />
+
+            <label htmlFor="leaderboard-password">Password</label>
+            <input
+              id="leaderboard-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter password"
+            />
+
+            <button type="submit">Open Leaderboard</button>
+          </form>
+          {authError && <p className="error">{authError}</p>}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="page">
       <section className="card stack">
         <h1>Jin Leaderboard</h1>
         <p>Daily ranking for {today}.</p>
-        {myRank && <p><strong>Your rank:</strong> #{myRank}</p>}
+        {myRank && (
+          <p>
+            <strong>Your rank:</strong> #{myRank}
+          </p>
+        )}
 
         {loading ? (
           <p>Loading leaderboard...</p>
@@ -143,7 +229,8 @@ function LeaderboardContent() {
             <ul>
               {rows.map((row, index) => (
                 <li key={row.playerId}>
-                  <strong>#{index + 1}</strong> {row.name} ({row.phone}) | Score: {row.score} | Time: {row.totalTime}s |{" "}
+                  <strong>#{index + 1}</strong> {row.name} ({row.phone}) |
+                  Score: {row.score} | Time: {row.totalTime}s |{" "}
                   {row.completed ? "Completed" : "In Progress"}
                 </li>
               ))}
