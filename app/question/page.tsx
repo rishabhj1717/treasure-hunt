@@ -90,6 +90,14 @@ const getLocalDateString = () => {
 };
 
 const pickRandom = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+const shuffleArray = <T,>(items: T[]) => {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
 
 const shuffleTiles = (size: number) => {
   const items = Array.from({ length: size * size }, (_, index) => index);
@@ -126,6 +134,7 @@ function QuestionContent() {
     expert: []
   });
   const [selectedOption, setSelectedOption] = useState("");
+  const [shuffledOptions, setShuffledOptions] = useState<GameQuestion["options"]>([]);
   const [fillBlankAnswer, setFillBlankAnswer] = useState("");
   const [language, setLanguage] = useState<Language>("english");
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
@@ -446,6 +455,7 @@ function QuestionContent() {
     setSelectedOption("");
     setFillBlankAnswer("");
     setSuccessMessage("");
+    setShuffledOptions(currentQuestion.questionType === "mcq" ? shuffleArray(currentQuestion.options) : []);
 
     if (currentQuestion.questionType === "image_puzzle") {
       if (puzzleQuestionId !== currentQuestion.id) {
@@ -839,7 +849,7 @@ function QuestionContent() {
             <h2>{currentQuestion?.prompt[language]}</h2>
             <fieldset className="options-grid">
               <legend className="sr-only">Choose one option</legend>
-              {currentQuestion?.options.map((option) => (
+              {shuffledOptions.map((option) => (
                 <label key={option.id} className="option-card">
                   <input
                     type="radio"

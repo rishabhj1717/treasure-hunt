@@ -169,3 +169,32 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY` in the browser.
 - Admin auth is client-side only and basic by design.
 - Destructive database operations such as `delete from ...` or `drop table ...` should be run directly in Supabase SQL Editor.
 - RLS policies are permissive for demo use; tighten before production.
+
+## 9. CSV Validation
+
+Use the local validator before uploading a CSV:
+
+```bash
+npm run validate:csv -- ./sample-questions.csv
+```
+
+You can validate any CSV path:
+
+```bash
+npm run validate:csv -- /absolute/path/to/questions.csv
+```
+
+What it checks:
+- required headers
+- valid `game_date`, `category`, and `question_type`
+- question-type-specific rules for `mcq`, `fill_blank`, and `image_puzzle`
+- trivia field consistency
+- duplicate import keys using `game_date + category + question_type + prompt`
+- missing category coverage by date
+- whether a date has fewer than 2 questions in a category, which is risky for the 10-question daily flow
+
+Exit codes:
+- `0`: no validation errors
+- `1`: validation failed
+
+Warnings do not block the script, but they should usually be reviewed before upload.
