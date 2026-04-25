@@ -32,24 +32,15 @@ type LeaderboardRow = {
 const MAX_SCORE = 10;
 const clampScore = (value: number) => Math.min(Math.max(value, 0), MAX_SCORE);
 const getScoreFromAttempts = (attempts: AttemptRow[]) => {
-  const completedQuestions = new Set<string>();
+  const correctlySolvedQuestions = new Set<string>();
 
   for (const attempt of attempts) {
-    if (
-      attempt.question_id &&
-      attempt.selected_option_id !== "fill_blank" &&
-      attempt.selected_option_id !== "solved"
-    ) {
-      completedQuestions.add(attempt.question_id);
-      continue;
-    }
-
     if (attempt.correct && attempt.question_id) {
-      completedQuestions.add(attempt.question_id);
+      correctlySolvedQuestions.add(attempt.question_id);
     }
   }
 
-  return clampScore(completedQuestions.size);
+  return clampScore(correctlySolvedQuestions.size);
 };
 
 const getLocalDateString = () => {

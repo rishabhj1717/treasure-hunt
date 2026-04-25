@@ -131,16 +131,16 @@ const isSolvedTiles = (tiles: number[]) =>
   tiles.every((value, idx) => value === idx);
 const normalizeText = (value: string) =>
   value.trim().replace(/\s+/g, " ").toLowerCase();
-const getScoreFromAttempts = (attemptRows: AttemptRecord[]) => {
-  const completedQuestions = new Set<string>();
+const getProgressFromAttempts = (attemptRows: AttemptRecord[]) => {
+  const progressedQuestions = new Set<string>();
 
   for (const attempt of attemptRows) {
     if (attempt.questionType === "mcq" || attempt.correct) {
-      completedQuestions.add(attempt.questionId);
+      progressedQuestions.add(attempt.questionId);
     }
   }
 
-  return clampScore(completedQuestions.size);
+  return clampScore(progressedQuestions.size);
 };
 
 function QuestionContent() {
@@ -411,12 +411,12 @@ function QuestionContent() {
         }
 
         const needsDailyReset = playerData.active_game_date !== today;
-        const derivedScore = needsDailyReset
+        const derivedProgress = needsDailyReset
           ? 0
-          : getScoreFromAttempts(attemptRows);
-        const isFreshForToday = derivedScore === 0;
+          : getProgressFromAttempts(attemptRows);
+        const isFreshForToday = derivedProgress === 0;
 
-        let currentStageIndex = derivedScore;
+        let currentStageIndex = derivedProgress;
 
         const existingStageQuestionIds = (
           needsDailyReset ? {} : (playerData.stage_question_ids ?? {})
@@ -543,8 +543,6 @@ function QuestionContent() {
       }
     }
   }, [currentQuestion, hasCompleted, puzzleQuestionId]);
-
-  const completedScore = getScoreFromAttempts(attempts);
 
   const totalSolvedSeconds = attempts.reduce(
     (total, attempt) => total + attempt.timeTakenSeconds,
@@ -905,29 +903,7 @@ function QuestionContent() {
           <div className="stack">
             <h2>Jin Gyan Complete</h2>
             <p>You solved all 10 questions for {today}.</p>
-            <p>Score: {completedScore}</p>
             <p>Total solve time: {Math.round(totalSolvedSeconds)} seconds.</p>
-          </div>
-        ) : pendingTrivia ? (
-          <div className="stack">
-            <p>
-              <strong>Category:</strong>{" "}
-              {pendingTrivia.question.category.toUpperCase()}
-            </p>
-            <h2>Answer Trivia</h2>
-            {pendingTrivia.question.triviaText[language] && (
-              <p>{pendingTrivia.question.triviaText[language]}</p>
-            )}
-            {pendingTrivia.question.triviaImageUrl && (
-              <img
-                className="trivia-image"
-                src={pendingTrivia.question.triviaImageUrl}
-                alt="Trivia related to the answer"
-              />
-            )}
-            <button type="button" onClick={continueAfterTrivia}>
-              Continue
-            </button>
           </div>
         ) : currentQuestion?.questionType === "image_puzzle" ? (
           <div className="stack">
@@ -1029,9 +1005,6 @@ function QuestionContent() {
 
         <section className="attempts">
           <h3>Today&apos;s Attempt History</h3>
-          <p>
-            <strong>Score:</strong> {completedScore}
-          </p>
           {attempts.length === 0 ? (
             <p>No attempts yet.</p>
           ) : (
@@ -1050,6 +1023,38 @@ function QuestionContent() {
           )}
         </section>
       </section>
+      {pendingTrivia && (
+        <div className="modal-backdrop" role="presentation">
+          <div
+            className="trivia-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trivia-modal-title"
+          >
+            <p className="trivia-kicker">
+              <strong>Category:</strong>{" "}
+              {pendingTrivia.question.category.toUpperCase()}
+            </p>
+            <h2 id="trivia-modal-title">Trivia Time</h2>
+            <p className="trivia-note">
+              Read this before moving to the next question.
+            </p>
+            {pendingTrivia.question.triviaText[language] && (
+              <p>{pendingTrivia.question.triviaText[language]}</p>
+            )}
+            {pendingTrivia.question.triviaImageUrl && (
+              <img
+                className="trivia-image"
+                src={pendingTrivia.question.triviaImageUrl}
+                alt="Trivia related to the answer"
+              />
+            )}
+            <button type="button" onClick={continueAfterTrivia}>
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
